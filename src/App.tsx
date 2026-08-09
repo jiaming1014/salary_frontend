@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { API_BASE } from './api'
 import PredictTab from './components/PredictTab'
 import TrainTab from './components/TrainTab'
 
@@ -53,9 +54,19 @@ function App() {
         {/* Footer */}
         <footer className="mt-12 border-t border-slate-200 pt-6 text-center text-xs text-slate-400 dark:border-slate-700">
           <p>
-            純前端計算，無需後端伺服器。部署於 Render Static Site 即可使用。
+            後端 API：
+            <a
+              href={API_BASE}
+              target="_blank"
+              rel="noreferrer"
+              className="font-medium text-emerald-600 hover:underline dark:text-emerald-400"
+            >
+              {API_BASE.replace(/^https?:\/\//, '')}
+            </a>
           </p>
-          <p className="mt-1">Vite · React · TypeScript · Tailwind CSS</p>
+          <p className="mt-1">
+            Vite · React · TypeScript · Tailwind CSS ｜ 首次載入若後端休眠，喚醒約需 30~60 秒
+          </p>
         </footer>
       </div>
     </div>

@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { predictSalary } from '../api'
+import type { PredictResult } from '../api'
 import { CITIES, EDU_LEVELS, FEATURE_COEFS } from '../model/params'
-import { predictSalary } from '../model/predict'
 import type { City, EduLevel } from '../model/params'
 import Slider from './Slider'
 
@@ -16,9 +17,34 @@ export default function PredictTab() {
   const [years, setYears] = useState(5)
   const [edu, setEdu] = useState<EduLevel>('大學')
   const [city, setCity] = useState<City>('城市A')
+  const [result, setResult] = useState<PredictResult | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const result = useMemo(() => predictSalary(years, edu, city), [years, edu, city])
-  const coefs = useMemo(() => FEATURE_COEFS, [])
+  const runPredict = useCallback(async (y: number, e: EduLevel, c: City) => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await predictSalary({ years_experience: y, education_level: e, city: c })
+      setResult(res)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '預測失敗')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  // 條件變動後 400ms 自動預測（防抖）
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => runPredict(years, edu, city), 400)
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+    }
+  }, [years, edu, city, runPredict])
+
+  const coefs = FEATURE_COEFS
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -28,7 +54,7 @@ export default function PredictTab() {
           <span>📏</span> 輸入條件
         </h3>
         <p className="mb-5 text-sm text-slate-500 dark:text-slate-400">
-          調整條件，結果即時更新（純前端計算）
+          調整條件即時預測，由後端模型計算
         </p>
 
         <div className="flex flex-col gap-5">
@@ -122,11 +148,22 @@ export default function PredictTab() {
             預測月薪
           </span>
           <h2 className="my-2 text-4xl font-extrabold tabular-nums text-emerald-700 sm:text-5xl dark:text-emerald-300">
-            {result.monthly.toLocaleString('zh-TW', { maximumFractionDigits: 1 })} K
+            {result ? (
+              result.monthly.toLocaleString('zh-TW', { maximumFractionDigits: 1 })
+            ) : (
+              '—'
+            )}{' '}
+            K
           </h2>
           <p className="font-medium text-emerald-600/90 dark:text-emerald-400/90">
             （千元 / 月）
           </p>
+          {loading && (
+            <span className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-emerald-600">
+              <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
+              更新中
+            </span>
+          )}
         </div>
 
         {/* 年薪 + 細節 */}
@@ -136,30 +173,36 @@ export default function PredictTab() {
               預估年薪（約 14 個月）
             </div>
             <div className="mt-1 text-2xl font-extrabold tabular-nums text-indigo-600 dark:text-indigo-300">
-              {result.annual.toFixed(1)} K
+              {result ? result.annual.toFixed(1) : '—'} K
             </div>
           </div>
 
-          <div className="mt-4 flex flex-col gap-2 text-sm">
-            <div className="flex justify-between rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700">
-              <span className="text-slate-500 dark:text-slate-400">🧠 教育程度</span>
-              <span className="font-semibold tabular-nums text-slate-700 dark:text-slate-200">
-                {edu}（係數 {coefs.EducationLevel.toFixed(4)}）
-              </span>
+          {error ? (
+            <div className="mt-4 rounded-lg bg-red-50 p-4 text-sm text-red-600 dark:bg-red-950/40 dark:text-red-300">
+              ⚠️ {error}
             </div>
-            <div className="flex justify-between rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700">
-              <span className="text-slate-500 dark:text-slate-400">🏙️ 工作城市</span>
-              <span className="font-semibold tabular-nums text-slate-700 dark:text-slate-200">
-                {city}（係數 {(coefs[`City_${city}`] ?? 0).toFixed(4)}）
-              </span>
+          ) : (
+            <div className="mt-4 flex flex-col gap-2 text-sm">
+              <div className="flex justify-between rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700">
+                <span className="text-slate-500 dark:text-slate-400">🧠 教育程度</span>
+                <span className="font-semibold tabular-nums text-slate-700 dark:text-slate-200">
+                  {edu}（係數 {coefs.EducationLevel.toFixed(4)}）
+                </span>
+              </div>
+              <div className="flex justify-between rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700">
+                <span className="text-slate-500 dark:text-slate-400">🏙️ 工作城市</span>
+                <span className="font-semibold tabular-nums text-slate-700 dark:text-slate-200">
+                  {city}（係數 {(coefs[`City_${city}`] ?? 0).toFixed(4)}）
+                </span>
+              </div>
+              <div className="flex justify-between rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700">
+                <span className="text-slate-500 dark:text-slate-400">📈 工作經驗</span>
+                <span className="font-semibold tabular-nums text-slate-700 dark:text-slate-200">
+                  {years.toFixed(1)} 年（係數 {coefs.YearsExperience.toFixed(4)}）
+                </span>
+              </div>
             </div>
-            <div className="flex justify-between rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700">
-              <span className="text-slate-500 dark:text-slate-400">📈 工作經驗</span>
-              <span className="font-semibold tabular-nums text-slate-700 dark:text-slate-200">
-                {years.toFixed(1)} 年（係數 {coefs.YearsExperience.toFixed(4)}）
-              </span>
-            </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

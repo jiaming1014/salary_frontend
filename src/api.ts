@@ -61,6 +61,16 @@ async function callGradioFn<T>(fn: string, inputs: unknown[]): Promise<T[]> {
   }
 }
 
+// ---- 應用程式後端資訊 ----
+export interface AppMeta {
+  data_size: number
+  model_summary: Record<string, string>
+}
+
+export function getMeta(): Promise<AppMeta> {
+  return callGradioFn<AppMeta>('get_meta', []).then((data) => data[0])
+}
+
 // ---- 薪資預測 ----
 export interface PredictResult {
   markdown: string

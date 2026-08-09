@@ -1,9 +1,32 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { predictSalary } from '../api'
 import type { PredictResult } from '../api'
-import { CITIES, EDU_LEVELS, FEATURE_COEFS } from '../model/params'
-import type { City, EduLevel } from '../model/params'
+import { CITIES, EDU_LEVELS } from '../options'
+import type { City, EduLevel } from '../options'
 import Slider from './Slider'
+
+// 簡易 markdown→HTML 渲染（後端 format_prediction 的固定格式）
+function renderMarkdown(md: string): string {
+  const inline = (s: string) => s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+  return md
+    .split('\n')
+    .map((line) => {
+      const t = line.trim()
+      if (!t) return ''
+      if (t.startsWith('### '))
+        return `<h3 class="mb-1 text-sm font-bold text-slate-500 dark:text-slate-400">${inline(t.slice(4))}</h3>`
+      if (t.startsWith('# '))
+        return `<div class="text-2xl font-extrabold text-emerald-700 dark:text-emerald-300">${inline(t.slice(2))}</div>`
+      if (t.startsWith('- ')) {
+        const m = t.slice(2).match(/^\*\*(.+?)\*\*\s*[：:]\s*(.+)$/)
+        if (m)
+          return `<div class="flex justify-between rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700"><span class="text-slate-500 dark:text-slate-400">${inline(m[1])}</span><span class="font-semibold tabular-nums text-slate-700 dark:text-slate-200">${inline(m[2])}</span></div>`
+      }
+      if (t === '---') return '<hr class="my-3 border-slate-200 dark:border-slate-700" />'
+      return `<div class="text-sm text-slate-500 dark:text-slate-400">${inline(t)}</div>`
+    })
+    .join('\n')
+}
 
 // 常見範例，方便一鍵套用
 const PRESETS: { name: string; emoji: string; years: number; edu: EduLevel; city: City }[] = [
@@ -43,8 +66,6 @@ export default function PredictTab() {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
   }, [years, edu, city, runPredict])
-
-  const coefs = FEATURE_COEFS
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -181,27 +202,13 @@ export default function PredictTab() {
             <div className="mt-4 rounded-lg bg-red-50 p-4 text-sm text-red-600 dark:bg-red-950/40 dark:text-red-300">
               ⚠️ {error}
             </div>
+          ) : result ? (
+            <div
+              className="mt-3 flex flex-col gap-2"
+              dangerouslySetInnerHTML={{ __html: renderMarkdown(result.markdown) }}
+            />
           ) : (
-            <div className="mt-4 flex flex-col gap-2 text-sm">
-              <div className="flex justify-between rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700">
-                <span className="text-slate-500 dark:text-slate-400">🧠 教育程度</span>
-                <span className="font-semibold tabular-nums text-slate-700 dark:text-slate-200">
-                  {edu}（係數 {coefs.EducationLevel.toFixed(4)}）
-                </span>
-              </div>
-              <div className="flex justify-between rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700">
-                <span className="text-slate-500 dark:text-slate-400">🏙️ 工作城市</span>
-                <span className="font-semibold tabular-nums text-slate-700 dark:text-slate-200">
-                  {city}（係數 {(coefs[`City_${city}`] ?? 0).toFixed(4)}）
-                </span>
-              </div>
-              <div className="flex justify-between rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700">
-                <span className="text-slate-500 dark:text-slate-400">📈 工作經驗</span>
-                <span className="font-semibold tabular-nums text-slate-700 dark:text-slate-200">
-                  {years.toFixed(1)} 年（係數 {coefs.YearsExperience.toFixed(4)}）
-                </span>
-              </div>
-            </div>
+            <p className="py-6 text-center text-sm text-slate-400">尚無資料</p>
           )}
         </div>
       </div>

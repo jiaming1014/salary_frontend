@@ -1,17 +1,10 @@
-import { useState } from 'react'
-import { MODEL_META } from '../model/params'
-import { SALARY_ROWS } from '../model/dataset'
+import { useEffect, useState } from 'react'
+import { trainModel, getMeta } from '../api'
+import type { AppMeta, TrainResult } from '../api'
+import { MODEL_TYPES } from '../options'
 import Slider from './Slider'
-import { trainModel } from '../api'
-import type { TrainResult } from '../api'
 
 const COEF_COLORS = ['#10b981', '#6366f1', '#8b5cf6', '#0ea5e9', '#f59e0b']
-
-const MODEL_TYPES: { key: string; label: string }[] = [
-  { key: 'LinearRegression', label: 'LinearRegression' },
-  { key: 'Lasso', label: 'Lasso' },
-  { key: 'Ridge', label: 'Ridge' },
-]
 
 function MetricCard({
   label,
@@ -42,6 +35,14 @@ export default function TrainTab() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<TrainResult | null>(null)
+  const [meta, setMeta] = useState<AppMeta | null>(null)
+
+  // 載入後端提供的資料筆數與目前模型摘要
+  useEffect(() => {
+    getMeta()
+      .then(setMeta)
+      .catch(() => setMeta(null))
+  }, [])
 
   async function handleTrain() {
     setLoading(true)
@@ -109,16 +110,16 @@ export default function TrainTab() {
             <div className="grid grid-cols-3 gap-2">
               {MODEL_TYPES.map((mt) => (
                 <button
-                  key={mt.key}
+                  key={mt}
                   type="button"
-                  onClick={() => setModelType(mt.key)}
+                  onClick={() => setModelType(mt)}
                   className={`rounded-xl border px-2 py-2.5 text-sm font-semibold transition ${
-                    modelType === mt.key
+                    modelType === mt
                       ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:bg-indigo-500/40 dark:text-indigo-300'
                       : 'border-slate-200 bg-white text-slate-600 hover:border-indigo-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300'
                   }`}
                 >
-                  {mt.label}
+                  {mt}
                 </button>
               ))}
             </div>
@@ -153,7 +154,16 @@ export default function TrainTab() {
         </button>
 
         <p className="mt-3 text-center text-xs text-slate-400">
-          內建資料：{SALARY_ROWS.length} 筆｜既有模型：{MODEL_META.model_type}（R² {MODEL_META.r2.toFixed(4)}）
+          {error ? (
+            <span>⚠️ 無法取得後端資料資訊</span>
+          ) : meta ? (
+            <>
+              內建資料：{meta.data_size} 筆｜目前模型：{meta.model_summary['目前模型']}（R²{' '}
+              {meta.model_summary['R² 決定係數']}）
+            </>
+          ) : (
+            <span>載入後端資料資訊中…</span>
+          )}
         </p>
       </div>
 
